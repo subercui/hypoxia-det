@@ -24,8 +24,8 @@ import numpy as np
 import pandas as pd
 import csv
 
-import wandb
-wandb.init(project="vessel_segmentation")
+from tensorboardX import SummaryWriter
+writer = SummaryWriter()
 '''
 I took care of eval() and train(), don't worry about implementing
 anything in these unless there is an error, please fix it!
@@ -166,7 +166,7 @@ def eval(loader_val, segmentation_module, args, crit):
     #         print('class [{}], IoU: {:.4f}'.format(i, _iou))
     print('loss: {:.4f}'.format(loss_meter.average()))
     # wandb.log({"Test IoU": iou[i], "Test Loss": loss_meter.average()})
-    wandb.log({"Test Loss": loss_meter.average()})
+    writer.add_scalar("Test Loss", loss_meter.average())
     return - loss_meter.average()  # iou[1]
 
 # train one epoch

@@ -381,7 +381,7 @@ def main(args):
     model = builder.build_model(args,
                                 arch=args.arch,
                                 weights=args.weights)
-    wandb.watch(model)
+    # wandb.watch(model)
 
     '''
     Implement the loss function in the function above.

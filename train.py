@@ -97,6 +97,15 @@ def infer(img, segmentation_module, args, mode='patch'):
 
         img = img.astype(np.uint8)
         return img
+    
+    def _scale_whole_img(image, if_norm=True):
+        assert len(image.shape) == 2
+        width, height = image.shape
+        scaled_w = 2**(math.ceil(math.log(max(width, height), 2)))
+        image = np.pad(image, (scaled_w-width, scaled_w-height), 'constant')
+        if if_norm:
+            image = image.astype(np.float) / 255.
+        return image
 
     if mode == 'patch':
         patches, coordinates = _img2patches(img, patch_size=args.patch_size)
@@ -105,7 +114,8 @@ def infer(img, segmentation_module, args, mode='patch'):
                             patch_size=args.patch_size,
                             scale_factor=args.scale_factor)
     elif mode == 'whole':
-        raise NotImplementedError
+        scaled_img = _scale_whole_img(img)
+        pred = patch_preds = segmentation_module.infer(scaled_img)
     else:
         raise NotImplementedError
 

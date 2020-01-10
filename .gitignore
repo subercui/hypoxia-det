@@ -8,3 +8,4 @@ visuliz_img
 *.pyc
 .vscode
 __pycache__
+runs

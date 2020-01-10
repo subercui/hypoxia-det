@@ -8,6 +8,7 @@ import numpy as np
 from shutil import copyfile
 from matplotlib import pyplot as plt
 from IPython.core.display import display, HTML
+import warnings
 
 
 def process_folder(input_folder, output_folder, rescale_ratio=0.1, mode='grey'):
@@ -34,7 +35,12 @@ def process_folder(input_folder, output_folder, rescale_ratio=0.1, mode='grey'):
         for img_file in img_files:
             out_file = 'resized '+img_file
             if exists(join(output_folder, out_file)):
-                raise Exception(f"output file {out_file} already exists!")
+                warnings.warn(f"output file {out_file} already exists!")
+                confirm = input("Do you really want to proceed? (y/n)")
+                if confirm == "y":
+                    break
+                else:
+                    raise Exception
     else:
         mkdir(output_folder)
 
@@ -59,8 +65,11 @@ def select_img(input_folder, output_folder, key_words):
     if exists(output_folder):
         warnings.warn("output folder existed, might be overwitten!")
         for img_file in img_files:
-            if exists(join(output_folder, img_file)):
-                raise Exception(f"output file {img_file} already exists!")
+            warnings.warn(f"output file {img_file} already exists!")
+            if input("Do you really want to proceed? (y/n)") == "y":
+                break
+            else:
+                raise Exception
     else:
         mkdir(output_folder)
 
@@ -80,10 +89,7 @@ def process_data(input_folder, output_folder):
         output_folder: path to the output dataset.
     """
     # preprocess imgs
-    try:
-        process_folder(input_folder, output_folder, rescale_ratio=0.1)
-    except Exception as e:
-        print(e)
+    process_folder(input_folder, output_folder, rescale_ratio=0.1)
     # select imgs
     img_folder = join(output_folder, 'img')
     select_img(output_folder, img_folder, 'HE-green')
@@ -94,9 +100,10 @@ def process_data(input_folder, output_folder):
 
 if __name__ == '__main__':
     data_folders = ["/home/haotian/Downloads/hypoxia image datasets/DC 201-226",
-                    #"/home/haotian/Downloads/hypoxia image datasets/DC 10B-12E",
-                    #"/home/haotian/Downloads/hypoxia image datasets/DC 250-262"
+                    "/home/haotian/Downloads/hypoxia image datasets/DC 10B-12E",
+                    "/home/haotian/Downloads/hypoxia image datasets/DC 250-262"
                     ]
     for data_folder in data_folders:
+        print(f"processing {data_folder}")
         process_data(input_folder=data_folder,
                      output_folder='/home/haotian/Code/vessel_segmentation/data/hypoxia img')

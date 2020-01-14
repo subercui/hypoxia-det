@@ -1,6 +1,7 @@
 import getopt
 import sys
 from os import listdir
+from os.path import join
 import os
 import random
 import torch
@@ -29,21 +30,18 @@ class DRIVEData(data.Dataset):
         self.split = split
         self.patch_size = patch_size
         self.scale_factor = scale_factor
-        self.TRAIN_IMG_PATH = os.path.join(root, 'training', 'img')
-        self.TRAIN_SEG_PATH = os.path.join(root, 'training', 'mask')
-        self.TEST_IMG_PATH = os.path.join(root, 'testing', 'img')
-        self.TEST_SEG_PATH = os.path.join(root, 'testing', 'mask')
+        self.TRAIN_PATH = os.path.join(root, 'training')
+        self.TEST_PATH = os.path.join(root, 'testing')
         if split == 'train':
-            img_path, seg_path = self.TRAIN_IMG_PATH, self.TRAIN_SEG_PATH
+            self.data_folder = self.TRAIN_PATH
         elif split == 'test':
-            img_path, seg_path = self.TEST_IMG_PATH, self.TEST_SEG_PATH
+            self.data_folder = self.TEST_PATH
         else:
             raise ValueError
-        self.img_files = listdir(img_path)
-        self.mask_files = listdir(seg_path)
+        self.sample_names = listdir(self.data_folder)
 
     def __len__(self):
-        return len(self.img_files)
+        return len(self.sample_names)
 
     def select_patch(self, pixels_img, pixels_seg, size, width, height):
         # select coordinates for patch
@@ -70,29 +68,30 @@ class DRIVEData(data.Dataset):
     def __getitem__(self, i):  # i is index
         assert self.split in ['train', 'test', 'result']
 
-        if self.split == 'train':
-            full_img_path = os.path.join(
-                self.TRAIN_IMG_PATH, self.img_files[i])
-            full_seg_path = os.path.join(
-                self.TRAIN_SEG_PATH, self.img_files[i].replace('HE-green', 'EF5'))
-
-        else:  # otherwise split is 'test'
-            full_img_path = os.path.join(self.TEST_IMG_PATH, self.img_files[i])
-            full_seg_path = os.path.join(
-                self.TEST_SEG_PATH, self.img_files[i].replace('HE-green', 'EF5'))
+        sample_name = self.sample_names[i]
+        full_img_path = join(self.data_folder, sample_name, 'HE-green.png')
+        full_nec_path = join(self.data_folder, sample_name, 'necrosis.png')
+        full_perf_path = join(self.data_folder, sample_name, 'perfusion.png')
+        full_label_path = join(self.data_folder, sample_name, 'EF5.png')
 
         im_img = cv2.imread(full_img_path, cv2.IMREAD_GRAYSCALE)
-        im_seg = cv2.imread(full_seg_path, cv2.IMREAD_GRAYSCALE)
+        im_nec = cv2.imread(full_nec_path, cv2.IMREAD_GRAYSCALE)
+        im_perf = cv2.imread(full_perf_path, cv2.IMREAD_GRAYSCALE)
+        im_label = cv2.imread(full_label_path, cv2.IMREAD_GRAYSCALE)
         assert im_img.ndim == 2
         assert isinstance(im_img, np.ndarray)
-        assert im_img.shape == im_seg.shape
+        assert im_img.shape == im_label.shape
         width, height = im_img.shape
-        im_img = im_img[:, :, None]
 
         if self.split == 'train' or self.split == 'test':
             # normalize to [0,1]
             pixels_img = np.array(im_img)/255
-            pixels_seg = np.array(im_seg)/self.scale_factor
+            pixels_nec = np.array(im_nec)/255
+            pixels_perf = np.array(im_perf)/255
+            pixels_seg = np.array(im_label)/self.scale_factor
+            # make multiple chanels
+            pixels_img = np.stack(
+                [pixels_img, pixels_nec, pixels_perf], axis=2)
             # make sure there is something in the label img
             assert pixels_seg.max() > 60/self.scale_factor
             patch_img, patch_seg = self.select_patch(
@@ -152,7 +151,7 @@ class DRIVEData(data.Dataset):
         '''
 
         data_dict = {
-            "name": self.img_files[i],
+            "name": sample_name,
             "image": img,
             "mask": seg,
             # "class": diagnosis

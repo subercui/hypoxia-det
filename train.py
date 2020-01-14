@@ -458,17 +458,17 @@ def main(args):
         Update the log you implemented above here.
         '''
         # inference on a whole slide
-        if args.test_img:
-            img = cv2.imread(args.test_img, cv2.IMREAD_GRAYSCALE)
-            pred = infer(img, segmentation_module, args, mode='patch')
+        # if args.test_img:
+        #     img = cv2.imread(args.test_img, cv2.IMREAD_GRAYSCALE)
+        #     pred = infer(img, segmentation_module, args, mode='patch')
 
-            plt.figure(figsize=[12.8, 9.6], dpi=300)
-            plt.imshow(pred, cmap='gray', vmin=0, vmax=255)
-            plt.colorbar()
-            # plt.show()
-            plt.savefig(os.path.join(
-                '/home/haotian/Code/vessel_segmentation/visuliz_img', f'{epoch}.png'), dpi=300)
-            plt.close()
+        #     plt.figure(figsize=[12.8, 9.6], dpi=300)
+        #     plt.imshow(pred, cmap='gray', vmin=0, vmax=255)
+        #     plt.colorbar()
+        #     # plt.show()
+        #     plt.savefig(os.path.join(
+        #         '/home/haotian/Code/vessel_segmentation/visuliz_img', f'{epoch}.png'), dpi=300)
+        #     plt.close()
 
         # update log
         train_loss = history['train']['loss']
@@ -497,7 +497,7 @@ if __name__ == '__main__':
     Edit DATA_ROOT variable depending on where the data is stored on your env.
     Its relative directory is ./data/img.
     '''
-    DATA_ROOT = "/home/haotian/Code/vessel_segmentation/data/hypoxia img"
+    DATA_ROOT = "~/Code/vessel_segmentation/data/hypoxia img"
     DATASET_NAME = "DRIVE"
 
     parser = argparse.ArgumentParser()
@@ -508,7 +508,7 @@ if __name__ == '__main__':
                         help="Model architecture")
     parser.add_argument('--weights', default='',
                         help="weights to finetune the model")
-    parser.add_argument('--in-channels', default=1, type=int,
+    parser.add_argument('--in-channels', default=3, type=int,
                         help="number of input channels")
     parser.add_argument('--out-channels', default=1,
                         type=int, help="number of out channels")
@@ -516,7 +516,7 @@ if __name__ == '__main__':
     # Path related arguments
     parser.add_argument('--data-root', type=str, default=DATA_ROOT)
     parser.add_argument('--test-img', type=str,
-                        default='/home/haotian/Code/vessel_segmentation/data/hypoxia img/training/img/resized DC 201 L1_HE-green.tif',
+                        default=DATA_ROOT + '/training/DC 201 L1/HE-green.png',
                         help='the image in visulize during training process, set to \'\' if not using visulization')
 
     # optimization related arguments

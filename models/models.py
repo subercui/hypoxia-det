@@ -118,7 +118,6 @@ class ModelBuilder():
                 torch.load(weights, map_location=lambda storage, loc: storage), strict=False)
 
             print("Loaded pretrained model weights.")
-        print('Loaded weights for model.')
         return model.double()
 
 

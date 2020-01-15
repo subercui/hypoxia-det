@@ -148,7 +148,7 @@ def infer(img_folder, segmentation_module, args, mode='patch'):
     return pred
 
 
-def eval(loader_val, segmentation_module, args, crit):
+def eval(loader_val, segmentation_module, args, crit, n_epoch):
     # intersection_meter = AverageMeter()
     # union_meter = AverageMeter()
     loss_meter = AverageMeter()
@@ -206,8 +206,8 @@ def eval(loader_val, segmentation_module, args, crit):
     print('loss: {:.4f}, MSE: {:.4f}'.format(
         loss_meter.average(), ave_mse.average()))
     # wandb.log({"Test IoU": iou[i], "Test Loss": loss_meter.average()})
-    writer.add_scalar("Test Loss", loss_meter.average())
-    writer.add_scalar("Test MSE", ave_mse.average())
+    writer.add_scalar("Test Loss", loss_meter.average(), n_epoch)
+    writer.add_scalar("Test MSE", ave_mse.average(), n_epoch)
     return - loss_meter.average()  # iou[1]
 
 # train one epoch
@@ -266,6 +266,8 @@ def train(segmentation_module, loader_train, optimizers, history, epoch, args):
                   args.lr,
                   ave_total_loss.average(),
                   ave_mse.average()))
+    writer.add_scalar("Train Loss", ave_total_loss.average(), epoch)
+    writer.add_scalar("Train MSE", ave_mse.average(), epoch)
 
     # args.running_lr_encoder
 
@@ -286,8 +288,8 @@ def checkpoint(nets, history, args, epoch_num):
 
     suffix_latest = 'epoch_{}.pth'.format(epoch_num)
 
-    torch.save(history,
-               '{}/history_{}'.format(args.ckpt, suffix_latest))
+    # torch.save(history,
+    #            '{}/history_{}'.format(args.ckpt, suffix_latest))
     dict_model = model.state_dict()
     torch.save(dict_model,
                '{}/model_{}'.format(args.ckpt, suffix_latest))
@@ -422,7 +424,6 @@ def main(args):
     model = builder.build_model(args,
                                 arch=args.arch,
                                 weights=args.weights)
-    # wandb.watch(model)
 
     '''
     Implement the loss function in the function above.
@@ -493,7 +494,7 @@ def main(args):
         train(segmentation_module, loader_train,
               optimizers, history, epoch, args)
         # eval() returns IoU so we can store it in our history that you implement above.
-        iou_val = eval(loader_val, segmentation_module, args, crit)
+        iou_val = eval(loader_val, segmentation_module, args, crit, epoch)
         '''
         Update the log you implemented above here.
         '''
@@ -520,6 +521,7 @@ def main(args):
             logwriter = csv.writer(logfile, delimiter=',')
             logwriter.writerow([epoch, train_loss, train_acc, iou_val])
 
+        checkpoint(nets, history, args, epoch)
         # save best model
         if iou_val >= best_val_accuracy:
             torch.save(model.state_dict(), os.path.join(
@@ -613,7 +615,7 @@ if __name__ == '__main__':
 
     args.id += '-' + str(args.arch)
 
-    args.id += '-ngpus' + str(num_gpus)
+    # args.id += '-ngpus' + str(num_gpus)
     args.id += '-batchSize' + str(args.batch_size)
 
     args.id += '-lr' + str(args.lr)
@@ -621,6 +623,8 @@ if __name__ == '__main__':
     args.id += '-epoch' + str(args.num_epoch)
     if args.fix_bn:
         args.id += '-fixBN'
+
+    args.id += time.strftime('%b%d_%H-%M', time.localtime())
     print('Model ID: {}'.format(args.id))
 
     args.ckpt = os.path.join(args.ckpt, args.id)

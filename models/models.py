@@ -52,6 +52,10 @@ class SegmentationModuleBase(nn.Module):
         AnB = torch.sum(pred.long() & label)  # TAKE THE AND
         return AnB/(pred.view(-1).sum().float() + label.view(-1).sum().float() - AnB)
 
+    # MSE metrics
+    def mse(self, pred, label):
+        return torch.mean((pred - label) ** 2)
+
 
 class SegmentationModule(SegmentationModuleBase):
     def __init__(self, model, crit):
@@ -69,9 +73,10 @@ class SegmentationModule(SegmentationModuleBase):
             '''
             pred = self.model(feed_dict['image'])  # (4,1,64,64)
             loss = self.crit(pred, feed_dict['mask'])
-            acc = self.pixel_acc(torch.round(nn.functional.softmax(
-                pred, dim=1)).long(), feed_dict['mask'].long())
-            return loss, acc
+            # acc = self.pixel_acc(torch.round(nn.functional.softmax(
+            #    pred, dim=1)).long(), feed_dict['mask'].long())
+            metric = self.mse(pred, feed_dict['mask'])
+            return loss, metric
         # inference
         else:
             p = self.model(feed_dict['image'].unsqueeze(0))
@@ -80,8 +85,9 @@ class SegmentationModule(SegmentationModuleBase):
             Note: we softmax the pred after calculating the validation loss.
             The values in pred are now in the range [0, 1].
             '''
+            metric = self.mse(p, feed_dict['mask'])
             pred = nn.functional.softmax(p, dim=1)
-            return pred, loss
+            return pred, loss, metric
 
     def infer(self, input):
         pred = self.model(input)

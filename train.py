@@ -34,7 +34,7 @@ moving tensors onto the gpu.
 '''
 
 
-def infer(img, segmentation_module, args, mode='patch'):
+def infer(img_folder, segmentation_module, args, mode='patch'):
     """Given an input slide img, predicts the hypoxia outputs.
 
     This works in test setting.
@@ -44,15 +44,15 @@ def infer(img, segmentation_module, args, mode='patch'):
         segmentation_module {nn.Module} -- the model to use
         args -- the arguments
         mode {str} -- in {'patch', 'whole'}, whether using patched
-        img, or directly predict on wholeimg. 
+        img, or directly predict on wholeimg.
 
     Returns:
-        {np.ndarray} -- the output pixel-wise prediction, which has 
+        {np.ndarray} -- the output pixel-wise prediction, which has
         the same size as the input img.
     """
     def _img2patches(image, patch_size, if_norm=True):
-        assert len(image.shape) == 2
-        width, height = image.shape
+        assert len(image.shape) == 3
+        width, height, channels = image.shape
         if if_norm:
             image = image.astype(np.float) / 255.
         patches = []
@@ -61,13 +61,11 @@ def infer(img, segmentation_module, args, mode='patch'):
             for j in range(0, height-patch_size, patch_size):
                 patches.append(image[i:i+patch_size, j:j+patch_size])
                 coordinates.append((i, j))
-        patches = np.stack(patches, axis=0)  # (N, patch_size, patch_size)
+        patches = np.stack(patches, axis=0)  # (N, patch_size, patch_size, cs)
 
-        # modify shapes
-        patches = patches[:, None, :, :]  # (N, C_in=1, patch_size, patch_size)
-
-        # modify data type
-        patches = torch.tensor(patches)
+        # modify data type and dims
+        # (N, C_in, patch_size, patch_size)
+        patches = torch.tensor(patches).permute(0, 3, 1, 2)
         if torch.cuda.is_available():
             patches = patches.cuda()
         return patches, coordinates
@@ -98,6 +96,13 @@ def infer(img, segmentation_module, args, mode='patch'):
         img = img.astype(np.uint8)
         return img
 
+    im_img = cv2.imread(os.path.join(
+        img_folder, 'HE-green.png'), cv2.IMREAD_GRAYSCALE)
+    im_nec = cv2.imread(os.path.join(
+        img_folder, 'necrosis.png'), cv2.IMREAD_GRAYSCALE)
+    im_perf = cv2.imread(os.path.join(
+        img_folder, 'perfusion.png'), cv2.IMREAD_GRAYSCALE)
+    img = np.stack([im_img, im_nec, im_perf], axis=2)
     if mode == 'patch':
         patches, coordinates = _img2patches(img, patch_size=args.patch_size)
         patch_preds = segmentation_module.infer(patches)
@@ -120,7 +125,7 @@ def eval(loader_val, segmentation_module, args, crit):
     segmentation_module.eval()
     # import pudb; pudb.set_trace()
     for idx, batch_data in enumerate(loader_val):
-        #batch_data = batch_data[0]
+        # batch_data = batch_data[0]
         seg_label = as_numpy(batch_data['mask'])
         img_resized_list = batch_data['image']
         if torch.cuda.is_available():
@@ -146,7 +151,7 @@ def eval(loader_val, segmentation_module, args, crit):
 
                 # forward pass
                 scores_tmp, loss = segmentation_module(feed_dict, mode='test')
-                #scores = scores.float() + scores_tmp.float()
+                # scores = scores.float() + scores_tmp.float()
                 loss_meter.update(loss)
                 _, pred = torch.max(scores_tmp, dim=1)
                 pred = as_numpy(pred.squeeze(0).cpu())
@@ -196,7 +201,7 @@ def train(segmentation_module, loader_train, optimizers, history, epoch, args):
         # forward pass
         loss, acc = segmentation_module(batch_data, mode='train')
         loss = loss.mean()
-        #print('this is acc')
+        # print('this is acc')
         # print(acc)
         jaccard = acc[1].float().mean()
         acc_all = acc[2].float().mean()
@@ -416,7 +421,7 @@ def main(args):
         patch_size=args.patch_size)
     loader_val = data.DataLoader(
         dataset_val,
-        batch_size=2,
+        batch_size=8,
         shuffle=True,
         num_workers=int(args.workers),
         drop_last=False,
@@ -458,17 +463,18 @@ def main(args):
         Update the log you implemented above here.
         '''
         # inference on a whole slide
-        # if args.test_img:
-        #     img = cv2.imread(args.test_img, cv2.IMREAD_GRAYSCALE)
-        #     pred = infer(img, segmentation_module, args, mode='patch')
+        if args.test_img:
+            folder_name = args.test_img.split('/')[-1]
+            pred = infer(args.test_img, segmentation_module,
+                         args, mode='patch')
 
-        #     plt.figure(figsize=[12.8, 9.6], dpi=300)
-        #     plt.imshow(pred, cmap='gray', vmin=0, vmax=255)
-        #     plt.colorbar()
-        #     # plt.show()
-        #     plt.savefig(os.path.join(
-        #         '/home/haotian/Code/vessel_segmentation/visuliz_img', f'{epoch}.png'), dpi=300)
-        #     plt.close()
+            plt.figure(figsize=[12.8, 9.6], dpi=300)
+            plt.imshow(pred, cmap='gray', vmin=0, vmax=255)
+            plt.colorbar()
+            # plt.show()
+            plt.savefig(os.path.join(
+                '/home/haotian/Code/vessel_segmentation/visuliz_img', f'{folder_name}-{epoch}.png'), dpi=300)
+            plt.close()
 
         # update log
         train_loss = history['train']['loss']
@@ -497,7 +503,7 @@ if __name__ == '__main__':
     Edit DATA_ROOT variable depending on where the data is stored on your env.
     Its relative directory is ./data/img.
     '''
-    DATA_ROOT = "~/Code/vessel_segmentation/data/hypoxia img"
+    DATA_ROOT = "/home/haotian/Code/vessel_segmentation/data/hypoxia img"
     DATASET_NAME = "DRIVE"
 
     parser = argparse.ArgumentParser()
@@ -516,7 +522,7 @@ if __name__ == '__main__':
     # Path related arguments
     parser.add_argument('--data-root', type=str, default=DATA_ROOT)
     parser.add_argument('--test-img', type=str,
-                        default=DATA_ROOT + '/training/DC 201 L1/HE-green.png',
+                        default=DATA_ROOT + '/training/DC 201 L1',
                         help='the image in visulize during training process, set to \'\' if not using visulization')
 
     # optimization related arguments
@@ -528,7 +534,7 @@ if __name__ == '__main__':
                         help='epochs to train for')
     parser.add_argument('--start_epoch', default=1, type=int,
                         help='epoch to start training. useful if continue from a checkpoint')
-    parser.add_argument('--lr', default=3e-4, type=float, help='LR')
+    parser.add_argument('--lr', default=3e-5, type=float, help='LR')
     parser.add_argument('--lr_pow', default=0.9, type=float,
                         help='power in poly to drop LR')
     parser.add_argument('--beta1', default=0.9, type=float,

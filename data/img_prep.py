@@ -167,6 +167,7 @@ class DataParser(object):
         img_file_nec = join(input_folder, 'Necrosis',
                             'Tissue Slides.'+sample_name+'.png')
         img_res = self.process_img(img_file_nec, self.rescale_ratio)
+        img_nec = img_res.copy()
         cv2.imwrite(join(sample_dir, 'necrosis.png'), img_res)
 
         img_file_perf = join(input_folder, 'Perfusion',
@@ -207,13 +208,16 @@ class DataParser(object):
                 elif 'EF5' in img_file:
                     img_res = self.process_img(
                         join(input_folder, img_file), self.rescale_ratio)
+                    img_ef5 = img_res.copy()
                     if not os.path.exists(join(sample_dir, 'EF5.png')):
                         cv2.imwrite(join(sample_dir, 'EF5.png'), img_res)
                     else:
                         warnings.warn(
                             f"file already exists, while processing {img_file}")
 
-        assert len(listdir(sample_dir)) == 6
+        masked_ef5 = (img_ef5 * (img_nec <= 0)).astype(img_ef5.dtype)
+        cv2.imwrite(join(sample_dir, 'EF5_masked.png'), masked_ef5)
+        assert len(listdir(sample_dir)) == 7
         return
 
 

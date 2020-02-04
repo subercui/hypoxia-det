@@ -3,8 +3,9 @@ result
 wandb
 data/img
 data/hypoxia img
-visuliz_img
+visuliz_img*
 .ipynb*
 *.pyc
 .vscode
 __pycache__
+runs

@@ -5,7 +5,8 @@
 #  run 'chmod +x train.sh' in bash
 #  run './train.sh'
 python train.py --id hypoxia\
-                --batch_size 4\
+                --batch_size 32\
                 --lr 3e-4\
                 --num_epoch 250\
-                --patch-size 128
+                --patch-size 128\
+                --test-img '/home/haotian/Code/vessel_segmentation/data/hypoxia img/training/DC 201 L1'

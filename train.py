@@ -34,7 +34,7 @@ moving tensors onto the gpu.
 '''
 
 
-def infer(img, segmentation_module, args, mode='patch'):
+def infer(img_folder, segmentation_module, args, mode='patch'):
     """Given an input slide img, predicts the hypoxia outputs.
 
     This works in test setting.
@@ -44,15 +44,15 @@ def infer(img, segmentation_module, args, mode='patch'):
         segmentation_module {nn.Module} -- the model to use
         args -- the arguments
         mode {str} -- in {'patch', 'whole'}, whether using patched
-        img, or directly predict on wholeimg. 
+        img, or directly predict on wholeimg.
 
     Returns:
-        {np.ndarray} -- the output pixel-wise prediction, which has 
+        {np.ndarray} -- the output pixel-wise prediction, which has
         the same size as the input img.
     """
     def _img2patches(image, patch_size, if_norm=True):
-        assert len(image.shape) == 2
-        width, height = image.shape
+        assert len(image.shape) == 3
+        width, height, channels = image.shape
         if if_norm:
             image = image.astype(np.float) / 255.
         patches = []
@@ -61,13 +61,11 @@ def infer(img, segmentation_module, args, mode='patch'):
             for j in range(0, height-patch_size, patch_size):
                 patches.append(image[i:i+patch_size, j:j+patch_size])
                 coordinates.append((i, j))
-        patches = np.stack(patches, axis=0)  # (N, patch_size, patch_size)
+        patches = np.stack(patches, axis=0)  # (N, patch_size, patch_size, cs)
 
-        # modify shapes
-        patches = patches[:, None, :, :]  # (N, C_in=1, patch_size, patch_size)
-
-        # modify data type
-        patches = torch.tensor(patches)
+        # modify data type and dims
+        # (N, C_in, patch_size, patch_size)
+        patches = torch.tensor(patches).permute(0, 3, 1, 2)
         if torch.cuda.is_available():
             patches = patches.cuda()
         return patches, coordinates
@@ -104,15 +102,16 @@ def infer(img, segmentation_module, args, mode='patch'):
         return pad_size_one, pad_size_two
     '''
     def _scale_whole_img(image, if_norm=True):
-        assert len(image.shape) == 2
-        width, height = image.shape
+        assert len(image.shape) == 3
+        width, height, _ = image.shape
         scaled_w = 2**(math.ceil(math.log(max(width, height), 2)))
-        img = np.zeros((1, 1, scaled_w, scaled_w))
+        img = np.zeros((1, image.shape[-1], scaled_w, scaled_w))
         w_start = math.floor((scaled_w-width)/2.)
         h_start = math.floor((scaled_w-height)/2.)
         #image = np.pad(image, (scaled_w-width, scaled_w-height), 'constant')
         #image = np.expand_dims(image, axis=0)
-        img[0, 0, w_start:w_start+width, h_start:h_start+height] = image[:,:]
+        img[0, :, w_start:w_start+width, h_start:h_start +
+            height] = image.transpose(2, 0, 1)
         if if_norm:
             img = img.astype(np.float) / 255.
         img = torch.tensor(img)
@@ -120,6 +119,17 @@ def infer(img, segmentation_module, args, mode='patch'):
             img = img.cuda()
         return img
 
+    im_img_G = cv2.imread(os.path.join(
+        img_folder, 'HE-green.png'), cv2.IMREAD_GRAYSCALE)
+    im_img_B = cv2.imread(os.path.join(
+        img_folder, 'HE-blue.png'), cv2.IMREAD_GRAYSCALE)
+    im_img_R = cv2.imread(os.path.join(
+        img_folder, 'HE-red.png'), cv2.IMREAD_GRAYSCALE)
+    im_nec = cv2.imread(os.path.join(
+        img_folder, 'necrosis.png'), cv2.IMREAD_GRAYSCALE)
+    im_perf = cv2.imread(os.path.join(
+        img_folder, 'perfusion.png'), cv2.IMREAD_GRAYSCALE)
+    img = np.stack([im_img_G, im_img_B, im_img_R, im_nec, im_perf], axis=2)
     if mode == 'patch':
         patches, coordinates = _img2patches(img, patch_size=args.patch_size)
         patch_preds = segmentation_module.infer(patches)
@@ -142,11 +152,13 @@ def infer(img, segmentation_module, args, mode='patch'):
     return pred
 
 
-def eval(loader_val, segmentation_module, args, crit):
+def eval(loader_val, segmentation_module, args, crit, n_epoch):
     # intersection_meter = AverageMeter()
     # union_meter = AverageMeter()
     loss_meter = AverageMeter()
     ave_mse = AverageMeter()
+    ave_pred_pct = AverageMeter()
+    ave_label_pct = AverageMeter()
 
     segmentation_module.eval()
     # import pudb; pudb.set_trace()
@@ -176,10 +188,13 @@ def eval(loader_val, segmentation_module, args, crit):
                 # print(torch.max(feed_dict['image']))
 
                 # forward pass
-                scores_tmp, loss, metric = segmentation_module(feed_dict, mode='test')
+                scores_tmp, loss, metric = segmentation_module(
+                    feed_dict, mode='test')
                 #scores = scores.float() + scores_tmp.float()
                 loss_meter.update(loss)
-                ave_mse.update(metric.data.item())
+                ave_mse.update(metric[0].data.item())
+                ave_pred_pct.update(metric[1].data.item())
+                ave_label_pct.update(metric[2].data.item())
                 _, pred = torch.max(scores_tmp, dim=1)
                 pred = as_numpy(pred.squeeze(0).cpu())
                 seg_label_temp = as_numpy(feed_dict['mask'].squeeze(0).cpu())
@@ -196,10 +211,12 @@ def eval(loader_val, segmentation_module, args, crit):
     # for i, _iou in enumerate(iou):
     #     if i == 1:
     #         print('class [{}], IoU: {:.4f}'.format(i, _iou))
-    print('loss: {:.4f}, MSE: {:.4f}'.format(loss_meter.average(), ave_mse.average()))
+    print('loss: {:.4f}, MSE: {:.4f}, pred-pct: {:.4f}, label-pct: {:.4f}'.format(
+        loss_meter.average(), ave_mse.average(), ave_pred_pct.average(), ave_label_pct.average()))
     # wandb.log({"Test IoU": iou[i], "Test Loss": loss_meter.average()})
-    writer.add_scalar("Test Loss", loss_meter.average())
-    writer.add_scalar("Test MSE", ave_mse.average())
+    writer.add_scalar("Test Loss", loss_meter.average(), n_epoch)
+    writer.add_scalar("Test MSE", ave_mse.average(), n_epoch)
+    writer.add_scalar("Test Pct", ave_pred_pct.average(), n_epoch)
     return - loss_meter.average()  # iou[1]
 
 # train one epoch
@@ -210,6 +227,8 @@ def train(segmentation_module, loader_train, optimizers, history, epoch, args):
     data_time = AverageMeter()
     ave_total_loss = AverageMeter()
     ave_mse = AverageMeter()
+    ave_pred_pct = AverageMeter()
+    ave_label_pct = AverageMeter()
     #ave_acc = AverageMeter()
     #ave_jaccard = AverageMeter()
     #ave_acc_all = AverageMeter()
@@ -244,29 +263,39 @@ def train(segmentation_module, loader_train, optimizers, history, epoch, args):
         tic = time.time()
 
         # update average loss and acc
-        ave_mse.update(acc.data.item())
+        ave_mse.update(acc[0].data.item())
+        ave_pred_pct.update(acc[1].data.item())
+        ave_label_pct.update(acc[2].data.item())
         ave_total_loss.update(loss.data.item())
-        #ave_acc.update(acc.data.item()*100)
-        #ave_jaccard.update(jaccard.data.item()*100)
-        #ave_acc_all.update(acc_all.data.item()*100)
+        # ave_acc.update(acc.data.item()*100)
+        # ave_jaccard.update(jaccard.data.item()*100)
+        # ave_acc_all.update(acc_all.data.item()*100)
     # calculate accuracy, and display
     print('Epoch: [{}/{}], Time: {:.2f}, Data: {:.2f},'
-            ' lr_model: {:.6f}, Loss: {:.6f}, MSE: {:.6f}'
+          ' lr_model: {:.6f}, Loss: {:.6f}, MSE: {:.6f},'
+          ' pred-pct: {:.6f}, label-pct: {:.6f}'
           .format(epoch, args.max_iters,
-                  batch_time.average(), 
+                  batch_time.average(),
                   data_time.average(),
-                  args.lr, 
-                  ave_total_loss.average(), 
-                  ave_mse.average()))
+                  args.lr,
+                  ave_total_loss.average(),
+                  ave_mse.average(),
+                  ave_pred_pct.average(),
+                  ave_label_pct.average()
+                  ))
+    writer.add_scalar("Train Loss", ave_total_loss.average(), epoch)
+    writer.add_scalar("Train MSE", ave_mse.average(), epoch)
+    writer.add_scalars("Train Pct", {'pred-pct': ave_pred_pct.average(),
+                                     'label-pct': ave_label_pct.average()}, epoch)
 
     # args.running_lr_encoder
 
     history['train']['epoch'].append(epoch)
     history['train']['loss'].append(loss.data.item())
     history['train']['mse'].append(ave_mse.average())
-    #history['train']['acc'].append(acc.data.item())
-    #history['train']['jaccard'].append(ave_jaccard.average())
-    #history['train']['acc_all'].append(ave_acc_all.average())
+    # history['train']['acc'].append(acc.data.item())
+    # history['train']['jaccard'].append(ave_jaccard.average())
+    # history['train']['acc_all'].append(ave_acc_all.average())
     # adjust learning rate
     # adjust_learning_rate(optimizers, epoch, args)
 
@@ -278,8 +307,8 @@ def checkpoint(nets, history, args, epoch_num):
 
     suffix_latest = 'epoch_{}.pth'.format(epoch_num)
 
-    torch.save(history,
-               '{}/history_{}'.format(args.ckpt, suffix_latest))
+    # torch.save(history,
+    #            '{}/history_{}'.format(args.ckpt, suffix_latest))
     dict_model = model.state_dict()
     torch.save(dict_model,
                '{}/model_{}'.format(args.ckpt, suffix_latest))
@@ -414,7 +443,6 @@ def main(args):
     model = builder.build_model(args,
                                 arch=args.arch,
                                 weights=args.weights)
-    # wandb.watch(model)
 
     '''
     Implement the loss function in the function above.
@@ -449,7 +477,7 @@ def main(args):
         patch_size=args.patch_size)
     loader_val = data.DataLoader(
         dataset_val,
-        batch_size=2,
+        batch_size=8,
         shuffle=True,
         num_workers=int(args.workers),
         drop_last=False,
@@ -478,21 +506,22 @@ def main(args):
     if not os.path.exists(logname):
         with open(logname, 'w') as logfile:
             logwriter = csv.writer(logfile, delimiter=',')
-            logwriter.writerow(['epoch', 'train_loss', 'train_mse', 'valid_loss', 'valid_mse'])
+            logwriter.writerow(
+                ['epoch', 'train_loss', 'train_mse', 'valid_loss', 'valid_mse'])
 
     for epoch in range(args.start_epoch, args.num_epoch + 1):
         train(segmentation_module, loader_train,
               optimizers, history, epoch, args)
         # eval() returns IoU so we can store it in our history that you implement above.
-        iou_val = eval(loader_val, segmentation_module, args, crit)
+        iou_val = eval(loader_val, segmentation_module, args, crit, epoch)
         '''
         Update the log you implemented above here.
         '''
         # inference on a whole slide
         if args.test_img:
-            img = cv2.imread(args.test_img, cv2.IMREAD_GRAYSCALE)
-            pred = infer(img, segmentation_module, args, mode='whole')
-
+            folder_name = args.test_img.split('/')[-1]
+            pred = infer(args.test_img, segmentation_module,
+                         args, mode='whole')
             plt.figure(figsize=[12.8, 9.6], dpi=300)
             plt.imshow(pred, cmap='gray', vmin=0, vmax=255)
             plt.colorbar()
@@ -510,6 +539,7 @@ def main(args):
             logwriter = csv.writer(logfile, delimiter=',')
             logwriter.writerow([epoch, train_loss, train_acc, iou_val])
 
+        checkpoint(nets, history, args, epoch)
         # save best model
         if iou_val >= best_val_accuracy:
             torch.save(model.state_dict(), os.path.join(
@@ -538,7 +568,7 @@ if __name__ == '__main__':
                         help="Model architecture")
     parser.add_argument('--weights', default='',
                         help="weights to finetune the model")
-    parser.add_argument('--in-channels', default=1, type=int,
+    parser.add_argument('--in-channels', default=5, type=int,
                         help="number of input channels")
     parser.add_argument('--out-channels', default=1,
                         type=int, help="number of out channels")
@@ -546,7 +576,7 @@ if __name__ == '__main__':
     # Path related arguments
     parser.add_argument('--data-root', type=str, default=DATA_ROOT)
     parser.add_argument('--test-img', type=str,
-                        default='/home/haotian/Code/vessel_segmentation/data/hypoxia img/training/img/resized DC 201 L1_HE-green.tif',
+                        default=DATA_ROOT + '/training/DC 201 L1',
                         help='the image in visulize during training process, set to \'\' if not using visulization')
 
     # optimization related arguments
@@ -603,7 +633,7 @@ if __name__ == '__main__':
 
     args.id += '-' + str(args.arch)
 
-    args.id += '-ngpus' + str(num_gpus)
+    # args.id += '-ngpus' + str(num_gpus)
     args.id += '-batchSize' + str(args.batch_size)
 
     args.id += '-lr' + str(args.lr)
@@ -611,6 +641,8 @@ if __name__ == '__main__':
     args.id += '-epoch' + str(args.num_epoch)
     if args.fix_bn:
         args.id += '-fixBN'
+
+    args.id += time.strftime('%b%d_%H-%M', time.localtime())
     print('Model ID: {}'.format(args.id))
 
     args.ckpt = os.path.join(args.ckpt, args.id)

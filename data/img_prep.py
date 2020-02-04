@@ -106,10 +106,12 @@ class DataParser(object):
         os.mkdir(target_folder)
         trial_folder_list = listdir(self.imgs_folder)
         trial_folder_list.remove('.DC 274-297')
+        trial_folder_list.remove('RV HCT116 KP4 PRAK')
         trial_folder_list = [join(self.imgs_folder, folder)
                              for folder in trial_folder_list]
         X_train, X_test = self.train_test_split(trial_folder_list=trial_folder_list, test_size=0.2)
-        for mode in ['train',' test']:
+        print('train sample size: {}; test sample size: {}'.format(len(X_train), len(X_test)))
+        for mode in ['train','test']:
             curr_path = os.path.join(target_folder, mode)
             os.mkdir(curr_path)
             if mode == 'train':

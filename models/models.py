@@ -56,6 +56,15 @@ class SegmentationModuleBase(nn.Module):
     def mse(self, pred, label):
         return torch.mean((pred - label) ** 2)
 
+    # percentage metrics
+    def percentage(self, pred, label, threshold=0.15):
+        # percent above threshold
+        pred_pct = (pred > threshold).sum().to(
+            dtype=torch.float) / float(pred.numel())
+        label_pct = (label > threshold).sum().to(
+            dtype=torch.float) / float(label.numel())
+        return pred_pct, label_pct
+
 
 class SegmentationModule(SegmentationModuleBase):
     def __init__(self, model, crit):
@@ -76,7 +85,8 @@ class SegmentationModule(SegmentationModuleBase):
             # acc = self.pixel_acc(torch.round(nn.functional.softmax(
             #    pred, dim=1)).long(), feed_dict['mask'].long())
             metric = self.mse(pred, feed_dict['mask'])
-            return loss, metric
+            pred_pct, label_pct = self.percentage(pred, feed_dict['mask'])
+            return loss, [metric, pred_pct, label_pct]
         # inference
         else:
             p = self.model(feed_dict['image'].unsqueeze(0))
@@ -86,8 +96,9 @@ class SegmentationModule(SegmentationModuleBase):
             The values in pred are now in the range [0, 1].
             '''
             metric = self.mse(p, feed_dict['mask'])
-            pred = nn.functional.softmax(p, dim=1)
-            return pred, loss, metric
+            pred_pct, label_pct = self.percentage(p, feed_dict['mask'])
+            pred = p
+            return pred, loss, [metric, pred_pct, label_pct]
 
     def infer(self, input):
         pred = self.model(input)

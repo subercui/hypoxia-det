@@ -153,6 +153,8 @@ def eval(loader_val, segmentation_module, args, crit, n_epoch):
     # union_meter = AverageMeter()
     loss_meter = AverageMeter()
     ave_mse = AverageMeter()
+    ave_pred_pct = AverageMeter()
+    ave_label_pct = AverageMeter()
 
     segmentation_module.eval()
     # import pudb; pudb.set_trace()
@@ -186,7 +188,9 @@ def eval(loader_val, segmentation_module, args, crit, n_epoch):
                     feed_dict, mode='test')
                 #scores = scores.float() + scores_tmp.float()
                 loss_meter.update(loss)
-                ave_mse.update(metric.data.item())
+                ave_mse.update(metric[0].data.item())
+                ave_pred_pct.update(metric[1].data.item())
+                ave_label_pct.update(metric[2].data.item())
                 _, pred = torch.max(scores_tmp, dim=1)
                 pred = as_numpy(pred.squeeze(0).cpu())
                 seg_label_temp = as_numpy(feed_dict['mask'].squeeze(0).cpu())
@@ -203,11 +207,12 @@ def eval(loader_val, segmentation_module, args, crit, n_epoch):
     # for i, _iou in enumerate(iou):
     #     if i == 1:
     #         print('class [{}], IoU: {:.4f}'.format(i, _iou))
-    print('loss: {:.4f}, MSE: {:.4f}'.format(
-        loss_meter.average(), ave_mse.average()))
+    print('loss: {:.4f}, MSE: {:.4f}, pred-pct: {:.4f}, label-pct: {:.4f}'.format(
+        loss_meter.average(), ave_mse.average(), ave_pred_pct.average(), ave_label_pct.average()))
     # wandb.log({"Test IoU": iou[i], "Test Loss": loss_meter.average()})
     writer.add_scalar("Test Loss", loss_meter.average(), n_epoch)
     writer.add_scalar("Test MSE", ave_mse.average(), n_epoch)
+    writer.add_scalar("Test Pct", ave_pred_pct.average(), n_epoch)
     return - loss_meter.average()  # iou[1]
 
 # train one epoch
@@ -218,6 +223,8 @@ def train(segmentation_module, loader_train, optimizers, history, epoch, args):
     data_time = AverageMeter()
     ave_total_loss = AverageMeter()
     ave_mse = AverageMeter()
+    ave_pred_pct = AverageMeter()
+    ave_label_pct = AverageMeter()
     #ave_acc = AverageMeter()
     #ave_jaccard = AverageMeter()
     #ave_acc_all = AverageMeter()
@@ -252,22 +259,30 @@ def train(segmentation_module, loader_train, optimizers, history, epoch, args):
         tic = time.time()
 
         # update average loss and acc
-        ave_mse.update(acc.data.item())
+        ave_mse.update(acc[0].data.item())
+        ave_pred_pct.update(acc[1].data.item())
+        ave_label_pct.update(acc[2].data.item())
         ave_total_loss.update(loss.data.item())
         # ave_acc.update(acc.data.item()*100)
         # ave_jaccard.update(jaccard.data.item()*100)
         # ave_acc_all.update(acc_all.data.item()*100)
     # calculate accuracy, and display
     print('Epoch: [{}/{}], Time: {:.2f}, Data: {:.2f},'
-          ' lr_model: {:.6f}, Loss: {:.6f}, MSE: {:.6f}'
+          ' lr_model: {:.6f}, Loss: {:.6f}, MSE: {:.6f},'
+          ' pred-pct: {:.6f}, label-pct: {:.6f}'
           .format(epoch, args.max_iters,
                   batch_time.average(),
                   data_time.average(),
                   args.lr,
                   ave_total_loss.average(),
-                  ave_mse.average()))
+                  ave_mse.average(),
+                  ave_pred_pct.average(),
+                  ave_label_pct.average()
+                  ))
     writer.add_scalar("Train Loss", ave_total_loss.average(), epoch)
     writer.add_scalar("Train MSE", ave_mse.average(), epoch)
+    writer.add_scalars("Train Pct", {'pred-pct': ave_pred_pct.average(),
+                                     'label-pct': ave_label_pct.average()}, epoch)
 
     # args.running_lr_encoder
 

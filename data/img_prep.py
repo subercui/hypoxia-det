@@ -111,6 +111,7 @@ class DataParser(object):
             sample_name_list = self.samples_in_trial(trial_folder)
             for s_name in sample_name_list:
                 self.form_sample_folder(trial_folder, target_folder, s_name)
+                self.save_color_img(target_folder, s_name)
 
     def samples_in_trial(self, trial_folder):
         """
@@ -132,6 +133,17 @@ class DataParser(object):
         img = cv2.imread(img_dir, imread_flag)
         img_res = cv2.resize(img, None, fx=rescale_ratio, fy=rescale_ratio)
         return img_res
+
+    def save_color_img(self, target_folder, sample_name):
+        sample_dir = join(target_folder, sample_name)
+        img_B = cv2.imread(join(sample_dir, 'HE-blue.png'),
+                           cv2.IMREAD_GRAYSCALE)
+        img_G = cv2.imread(join(sample_dir, 'HE-green.png'),
+                           cv2.IMREAD_GRAYSCALE)
+        img_R = cv2.imread(join(sample_dir, 'HE-red.png'),
+                           cv2.IMREAD_GRAYSCALE)
+        img = np.stack([255 - img_B, 255 - img_G, 255 - img_R], axis=2)
+        cv2.imwrite(join(sample_dir, 'HE.png'), img)
 
     def form_sample_folder(self, input_folder, target_folder, sample_name):
         """
@@ -176,6 +188,22 @@ class DataParser(object):
                     else:
                         warnings.warn(
                             f"file already exists, while processing {img_file}")
+                elif ('HE-R' in img_file) or ('HE-red' in img_file) or ('HEred' in img_file):
+                    img_res = self.process_img(
+                        join(input_folder, img_file), self.rescale_ratio)
+                    if not os.path.exists(join(sample_dir, 'HE-red.png')):
+                        cv2.imwrite(join(sample_dir, 'HE-red.png'), img_res)
+                    else:
+                        warnings.warn(
+                            f"file already exists, while processing {img_file}")
+                elif ('HE-B' in img_file) or ('HE-blue' in img_file) or ('HE-blue' in img_file):
+                    img_res = self.process_img(
+                        join(input_folder, img_file), self.rescale_ratio)
+                    if not os.path.exists(join(sample_dir, 'HE-blue.png')):
+                        cv2.imwrite(join(sample_dir, 'HE-blue.png'), img_res)
+                    else:
+                        warnings.warn(
+                            f"file already exists, while processing {img_file}")
                 elif 'EF5' in img_file:
                     img_res = self.process_img(
                         join(input_folder, img_file), self.rescale_ratio)
@@ -185,7 +213,7 @@ class DataParser(object):
                         warnings.warn(
                             f"file already exists, while processing {img_file}")
 
-        assert len(listdir(sample_dir)) == 4
+        assert len(listdir(sample_dir)) == 6
         return
 
 

@@ -69,29 +69,35 @@ class DRIVEData(data.Dataset):
         assert self.split in ['train', 'test', 'result']
 
         sample_name = self.sample_names[i]
-        full_img_path = join(self.data_folder, sample_name, 'HE-green.png')
+        full_img_G_path = join(self.data_folder, sample_name, 'HE-green.png')
+        full_img_B_path = join(self.data_folder, sample_name, 'HE-blue.png')
+        full_img_R_path = join(self.data_folder, sample_name, 'HE-red.png')
         full_nec_path = join(self.data_folder, sample_name, 'necrosis.png')
         full_perf_path = join(self.data_folder, sample_name, 'perfusion.png')
         full_label_path = join(self.data_folder, sample_name, 'EF5.png')
 
-        im_img = cv2.imread(full_img_path, cv2.IMREAD_GRAYSCALE)
+        im_img_G = cv2.imread(full_img_G_path, cv2.IMREAD_GRAYSCALE)
+        im_img_B = cv2.imread(full_img_B_path, cv2.IMREAD_GRAYSCALE)
+        im_img_R = cv2.imread(full_img_R_path, cv2.IMREAD_GRAYSCALE)
         im_nec = cv2.imread(full_nec_path, cv2.IMREAD_GRAYSCALE)
         im_perf = cv2.imread(full_perf_path, cv2.IMREAD_GRAYSCALE)
         im_label = cv2.imread(full_label_path, cv2.IMREAD_GRAYSCALE)
-        assert im_img.ndim == 2
-        assert isinstance(im_img, np.ndarray)
-        assert im_img.shape == im_label.shape
-        width, height = im_img.shape
+        assert im_img_G.ndim == 2
+        assert isinstance(im_img_G, np.ndarray)
+        assert im_img_G.shape == im_label.shape
+        width, height = im_img_G.shape
 
         if self.split == 'train' or self.split == 'test':
             # normalize to [0,1]
-            pixels_img = np.array(im_img)/255
+            pixels_img_G = np.array(im_img_G)/255
+            pixels_img_B = np.array(im_img_B)/255
+            pixels_img_R = np.array(im_img_R)/255
             pixels_nec = np.array(im_nec)/255
             pixels_perf = np.array(im_perf)/255
             pixels_seg = np.array(im_label)/self.scale_factor
             # make multiple chanels
             pixels_img = np.stack(
-                [pixels_img, pixels_nec, pixels_perf], axis=2)
+                [pixels_img_G, pixels_img_B, pixels_img_R, pixels_nec, pixels_perf], axis=2)
             # make sure there is something in the label img
             assert pixels_seg.max() > 60/self.scale_factor
             patch_img, patch_seg = self.select_patch(

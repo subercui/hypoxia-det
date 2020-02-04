@@ -9,4 +9,4 @@ python train.py --id hypoxia\
                 --lr 3e-4\
                 --num_epoch 250\
                 --patch-size 128\
-                --test-img '/home/haotian/Code/vessel_segmentation/data/hypoxia img/testing/M011 G2M5'
+                --test-img '/home/haotian/Code/vessel_segmentation/data/hypoxia img/training/DC 201 L1'

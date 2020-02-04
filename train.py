@@ -105,7 +105,7 @@ def infer(img_folder, segmentation_module, args, mode='patch'):
         assert len(image.shape) == 3
         width, height, _ = image.shape
         scaled_w = 2**(math.ceil(math.log(max(width, height), 2)))
-        img = np.zeros((1, 3, scaled_w, scaled_w))
+        img = np.zeros((1, image.shape[-1], scaled_w, scaled_w))
         w_start = math.floor((scaled_w-width)/2.)
         h_start = math.floor((scaled_w-height)/2.)
         #image = np.pad(image, (scaled_w-width, scaled_w-height), 'constant')
@@ -119,13 +119,17 @@ def infer(img_folder, segmentation_module, args, mode='patch'):
             img = img.cuda()
         return img
 
-    im_img = cv2.imread(os.path.join(
+    im_img_G = cv2.imread(os.path.join(
         img_folder, 'HE-green.png'), cv2.IMREAD_GRAYSCALE)
+    im_img_B = cv2.imread(os.path.join(
+        img_folder, 'HE-blue.png'), cv2.IMREAD_GRAYSCALE)
+    im_img_R = cv2.imread(os.path.join(
+        img_folder, 'HE-red.png'), cv2.IMREAD_GRAYSCALE)
     im_nec = cv2.imread(os.path.join(
         img_folder, 'necrosis.png'), cv2.IMREAD_GRAYSCALE)
     im_perf = cv2.imread(os.path.join(
         img_folder, 'perfusion.png'), cv2.IMREAD_GRAYSCALE)
-    img = np.stack([im_img, im_nec, im_perf], axis=2)
+    img = np.stack([im_img_G, im_img_B, im_img_R, im_nec, im_perf], axis=2)
     if mode == 'patch':
         patches, coordinates = _img2patches(img, patch_size=args.patch_size)
         patch_preds = segmentation_module.infer(patches)
@@ -565,7 +569,7 @@ if __name__ == '__main__':
                         help="Model architecture")
     parser.add_argument('--weights', default='',
                         help="weights to finetune the model")
-    parser.add_argument('--in-channels', default=3, type=int,
+    parser.add_argument('--in-channels', default=5, type=int,
                         help="number of input channels")
     parser.add_argument('--out-channels', default=1,
                         type=int, help="number of out channels")
@@ -573,7 +577,7 @@ if __name__ == '__main__':
     # Path related arguments
     parser.add_argument('--data-root', type=str, default=DATA_ROOT)
     parser.add_argument('--test-img', type=str,
-                        default='/home/haotian/Code/vessel_segmentation/data/hypoxia img/training/img/resized DC 201 L1_HE-green.tif',
+                        default=DATA_ROOT + '/training/DC 201 L1',
                         help='the image in visulize during training process, set to \'\' if not using visulization')
 
     # optimization related arguments

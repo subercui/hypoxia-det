@@ -95,7 +95,7 @@ class SegmentationModule(SegmentationModuleBase):
             Note: we softmax the pred after calculating the validation loss.
             The values in pred are now in the range [0, 1].
             '''
-            metric = self.mse(p, feed_dict['mask'])
+            metric = self.mse(p, feed_dict['mask'])=
             pred_pct, label_pct = self.percentage(p, feed_dict['mask'])
             pred = p
             return pred, loss, [metric, pred_pct, label_pct]

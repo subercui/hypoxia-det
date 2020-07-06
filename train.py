@@ -497,7 +497,7 @@ def main(args):
     checkpoint() function to save the network parameters
     '''
     # initialize history
-    history = {'train': {'epoch': [], 'loss': [], 'mse': []}}
+    history = {'train': {'epoch': [], 'loss': [], 'mse':[]}}
     best_val_accuracy = 0
     # create log
     # train_acc_P = Precision
@@ -522,13 +522,12 @@ def main(args):
             folder_name = args.test_img.split('/')[-1]
             pred = infer(args.test_img, segmentation_module,
                          args, mode='whole')
-
             plt.figure(figsize=[12.8, 9.6], dpi=300)
             plt.imshow(pred, cmap='gray', vmin=0, vmax=255)
             plt.colorbar()
             # plt.show()
             plt.savefig(os.path.join(
-                '/home/haotian/Code/vessel_segmentation/visuliz_img', f'{folder_name}-{epoch}.png'), dpi=300)
+                '/home/chloe/hypoxia-det/visuliz_img', f'{epoch}.png'), dpi=300)
             plt.close()
 
         # update log
@@ -585,7 +584,7 @@ if __name__ == '__main__':
                         help='gpus to use (indexes), e.g. 0-3 or 0,1,2,3')
     parser.add_argument('--batch_size', default=4, type=int,
                         help='input batch size')
-    parser.add_argument('--num_epoch', default=190, type=int,
+    parser.add_argument('--num_epoch', default=3, type=int,
                         help='epochs to train for')
     parser.add_argument('--start_epoch', default=1, type=int,
                         help='epoch to start training. useful if continue from a checkpoint')

@@ -9,7 +9,7 @@ from shutil import copyfile
 from matplotlib import pyplot as plt
 from IPython.core.display import display, HTML
 import warnings
-
+from sklearn.model_selection import train_test_split
 
 def process_folder(input_folder, output_folder, rescale_ratio=0.1, mode='grey'):
     """Processes all images in a folder, and store in a new folder.
@@ -103,6 +103,25 @@ class DataParser(object):
         return
 
     def parse_all(self, target_folder):
+        os.mkdir(target_folder)
+        trial_folder_list = listdir(self.imgs_folder)
+        trial_folder_list.remove('.DC 274-297')
+        trial_folder_list.remove('RV HCT116 KP4 PRAK')
+        trial_folder_list = [join(self.imgs_folder, folder)
+                             for folder in trial_folder_list]
+        X_train, X_test = self.train_test_split(trial_folder_list=trial_folder_list, test_size=0.2)
+        print('train sample size: {}; test sample size: {}'.format(len(X_train), len(X_test)))
+        for mode in ['train','test']:
+            curr_path = os.path.join(target_folder, mode)
+            os.mkdir(curr_path)
+            if mode == 'train':
+                sample_names = X_train
+            else:
+                sample_names = X_test
+            for s_name in sample_names:
+                self.form_sample_folder(s_name[0], curr_path, s_name[1])
+                self.save_color_img(curr_path, s_name[1])
+        '''
         trial_folder_list = listdir(self.imgs_folder)
         trial_folder_list.remove('.DC 274-297')
         trial_folder_list = [join(self.imgs_folder, folder)
@@ -112,6 +131,19 @@ class DataParser(object):
             for s_name in sample_name_list:
                 self.form_sample_folder(trial_folder, target_folder, s_name)
                 self.save_color_img(target_folder, s_name)
+                all_s_folder.append(s_name)
+        '''
+    def train_test_split(self, trial_folder_list, test_size=0.2):
+        """
+        return train, test lists of tuple (trial_folder_name, sample_name)
+        """
+        all_sample_names = []
+        for trial_folder in trial_folder_list:
+            sample_name_list = self.samples_in_trial(trial_folder)
+            for sample_name in sample_name_list:
+                all_sample_names.append((trial_folder, sample_name))
+        X_train, X_test = train_test_split(all_sample_names, test_size=test_size, random_state=42)
+        return X_train, X_test
 
     def samples_in_trial(self, trial_folder):
         """
@@ -212,7 +244,7 @@ class DataParser(object):
                     else:
                         warnings.warn(
                             f"file already exists, while processing {img_file}")
-
+        #print(listdir(sample_dir))
         assert len(listdir(sample_dir)) == 6
         return
 
@@ -229,8 +261,8 @@ if __name__ == '__main__':
     #                    output_folder=output_folder, rescale_ratio=0.1)
 
     # process_data(output_folder=output_folder)
-
+    rescale_ratio = 0.1
     parser = DataParser(
-        source_folder="/media/haotian/sg/hypoxia_data/imgs/", rescale_ratio=0.1)
+        source_folder="/media/haotian/sg/hypoxia_data/imgs/", rescale_ratio=rescale_ratio)
     parser.parse_all(
-        target_folder='/home/haotian/Code/vessel_segmentation/data/hypoxia img')
+        target_folder='/home/chloe/hypoxia-det/data/hypoxia_img_{}'.format(rescale_ratio))

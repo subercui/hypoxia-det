@@ -528,7 +528,7 @@ def main(args):
             plt.colorbar()
             # plt.show()
             plt.savefig(os.path.join(
-                '/home/haotian/Code/vessel_segmentation/visuliz_img', f'{folder_name}-{epoch}.png'), dpi=300)
+                './visuliz_img', f'{folder_name}-{epoch}.png'), dpi=300)
             plt.close()
 
         # update log
@@ -558,10 +558,15 @@ if __name__ == '__main__':
     Edit DATA_ROOT variable depending on where the data is stored on your env.
     Its relative directory is ./data/img.
     '''
-    DATA_ROOT = "/home/haotian/Code/vessel_segmentation/data/hypoxia img"
+    DATA_ROOT = "./data/hypoxia img"
     DATASET_NAME = "DRIVE"
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--infer', type=bool, default=False,
+                        help="running in inference mode")
+    parser.add_argument('--model', type=str,
+                            help='the path to model checkpoint')
+
     # Model related arguments
     parser.add_argument('--id', default='hypoxia',
                         help="a name for identifying the model")
@@ -653,4 +658,26 @@ if __name__ == '__main__':
     random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    main(args)
+    if args.infer:
+        # Network Builders
+        builder = ModelBuilder()
+        model = builder.build_model(num_class=args.num_class,
+            arch=args.arch,
+            weights=args.model)
+
+        crit = lossFunction()
+
+        segmentation_module = SegmentationModule(model, crit)
+        folder_name = args.test_img.split('/')[-1]
+        pred = infer(args.test_img, segmentation_module,
+                        args)
+
+        plt.figure(figsize=[12.8, 9.6], dpi=300)
+        plt.imshow(pred, cmap='gray', vmin=0, vmax=255)
+        plt.colorbar()
+        # plt.show()
+        plt.savefig(os.path.join(
+            './', 'predict.png'), dpi=300)
+        plt.close()
+    else:
+        main(args)

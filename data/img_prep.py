@@ -1,6 +1,7 @@
 # resize whole slide images into proper sizes
 import cv2
 import os
+import argparse
 from os import listdir, mkdir
 from os.path import join, exists
 import warnings
@@ -222,19 +223,12 @@ class DataParser(object):
 
 
 if __name__ == '__main__':
-    # data_folders = ["/home/haotian/Downloads/hypoxia image datasets/DC 201-226",
-    #                 "/home/haotian/Downloads/hypoxia image datasets/DC 10B-12E",
-    #                 "/home/haotian/Downloads/hypoxia image datasets/DC 250-262"
-    #                 ]
-    # output_folder = '/home/haotian/Code/vessel_segmentation/data/hypoxia img'
-    # for data_folder in data_folders:
-    #     print(f"processing {data_folder}")
-    #     process_folder(input_folder=data_folder,
-    #                    output_folder=output_folder, rescale_ratio=0.1)
-
-    # process_data(output_folder=output_folder)
-
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('--source-folder', type=str,
+                            help='the path to slide images')
+    argparser.add_argument('--target-folder', type=str,
+                            help='the folder to store parsed images')
+    args = argparser.parse_args()
     parser = DataParser(
-        source_folder="/media/haotian/sg/hypoxia_data/imgs/", rescale_ratio=0.1)
-    parser.parse_all(
-        target_folder='/home/haotian/Code/vessel_segmentation/data/hypoxia img')
+        source_folder=args.source_folder, rescale_ratio=0.1)
+    parser.parse_all(target_folder=args.target_folder)

@@ -168,4 +168,4 @@ class DRIVEData(data.Dataset):
 
 if __name__ == '__main__':
     dataset = DRIVEData(
-        root='/home/haotian/Code/vessel_segmentation/data/hypoxia img')
+        root='./data/hypoxia img')
